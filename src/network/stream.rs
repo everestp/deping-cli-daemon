@@ -47,7 +47,6 @@ impl StreamEngine {
                         payload: Some(Payload::Register(MinerRegister {
                             node_id: self.config.node_id.clone(),
                             version: env!("CARGO_PKG_VERSION").to_string(),
-                            region: self.config.region.clone(),
                             timestamp_ms: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis() as u64,
                         })),
                     };
@@ -56,6 +55,7 @@ impl StreamEngine {
                     // 2. Keepalive Heartbeat Task
                     let heartbeat_tx = tx.clone();
                     let node_id = self.config.node_id.clone();
+
                     let heartbeat_handle = tokio::spawn(async move {
                         loop {
                             sleep(Duration::from_secs(15)).await;
@@ -132,4 +132,3 @@ impl StreamEngine {
         }
     }
 }
-
