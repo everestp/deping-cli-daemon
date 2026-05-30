@@ -72,7 +72,7 @@ impl UptimeWorker {
 
         result.total_us = start_time.elapsed().as_micros() as u64;
 
-     
+
    // 🛡️ SECURITY: Cryptographic Binding (Signing the Job Result)
 // Only signing the immutable identity fields
 let signable_data = format!(
