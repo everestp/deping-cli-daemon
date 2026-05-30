@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use tokio::sync::{mpsc, Semaphore};
-// Added debug here
-use tracing::{info, warn, error, debug};
+use tokio::time::{timeout, Duration}; // Add this for safety
+use tracing::{info, warn, error};
 use crate::types::pb::{JobBatch, MinerMessage, miner_message::Payload};
 use crate::engine::worker::UptimeWorker;
 
@@ -31,24 +31,27 @@ impl TaskScheduler {
             let b_id = batch_id.clone();
 
             tokio::spawn(async move {
-                let _permit = match semaphore.acquire().await {
-                    Ok(permit) => permit,
-                    Err(e) => {
-                        error!("Failed to acquire rate limiting execution permit: {}", e);
-                        return;
+                // 🛡️ GATEKEEPER: Enforce concurrency limits
+                let _permit = semaphore.acquire().await.expect("Semaphore closed");
+
+                // 🎯 EXECUTION: Perform the probe with a 30s hard timeout
+                let probe_result = match timeout(Duration::from_secs(30), worker.execute_probe(b_id, job)).await {
+                    Ok(result) => result,
+                    Err(_) => {
+                        error!("❌ Job execution timed out, worker hung.");
+                        return; // Permit drops automatically here
                     }
                 };
 
-                debug!("Acquired execution permit. Probing target: {}", job.target_url);
-                let probe_result = worker.execute_probe(b_id, job).await;
-
+                // 📤 DISPATCH: Send back to gRPC stream
                 let response_msg = MinerMessage {
                     payload: Some(Payload::Result(probe_result)),
                 };
 
                 if let Err(err) = outbound_tx.send(response_msg).await {
-                    warn!("Failed to dispatch execution metrics back to local stream pipeline channel: {}", err);
+                    warn!("Stream pipeline disconnected, dropping result: {}", err);
                 }
+                // _permit dropped here
             });
         }
     }
