@@ -17,44 +17,387 @@ Each miner performs network measurements from its own geographic and network loc
 ---
 
 ## Architecture
+# DePing Network Architecture
+
+## High-Level System Architecture
 
 ```text
-                    ┌───────────────────────────┐
-                    │      DePing Control       │
-                    │      Go Backend Core      │
-                    └─────────────┬─────────────┘
-                                  │
-                                  │ gRPC Stream
-                                  ▼
-┌──────────────────────────────────────────────────────────────┐
-│                      Rust CLI Miner                          │
-├──────────────────────────────────────────────────────────────┤
-│                                                              │
-│  Identity Layer                                              │
-│  • Ed25519 keypair                                           │
-│  • Challenge signing                                         │
-│  • Node authentication                                       │
-│                                                              │
-│  Stream Layer                                                │
-│  • Persistent HTTP/2 gRPC                                   │
-│  • Heartbeats                                                │
-│  • Automatic reconnect                                       │
-│                                                              │
-│  Scheduler                                                   │
-│  • Tokio channels                                            │
-│  • Bounded concurrency                                       │
-│  • Resource protection                                       │
-│                                                              │
-│  Worker Engine                                               │
-│  • DNS Profiling                                             │
-│  • TCP Profiling                                             │
-│  • TLS Profiling                                             │
-│  • TTFB Profiling                                            │
-│                                                              │
-└──────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────────┐
+│                            DePing Network                                 │
+└────────────────────────────────────────────────────────────────────────────┘
+
+                                 ┌───────────────┐
+                                 │   Customers   │
+                                 │ Dashboards    │
+                                 │ APIs          │
+                                 └───────┬───────┘
+                                         │
+                                         ▼
+                         ┌─────────────────────────────┐
+                         │    Go Backend Platform      │
+                         ├─────────────────────────────┤
+                         │ REST API (Gin)             │
+                         │ Authentication Service     │
+                         │ Reward Engine              │
+                         │ Task Generator             │
+                         │ Metrics Aggregator         │
+                         └─────────────┬──────────────┘
+                                       │
+                                       │ gRPC HTTP/2
+                                       ▼
+                    ┌────────────────────────────────────┐
+                    │      gRPC Ingress Core             │
+                    │ Persistent Task Streaming          │
+                    │ Bi-Directional Streams            │
+                    └──────────────┬─────────────────────┘
+                                   │
+              ┌────────────────────┼────────────────────┐
+              │                    │                    │
+              ▼                    ▼                    ▼
+
+      ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+      │ Rust Miner A │    │ Rust Miner B │    │ Rust Miner C │
+      └──────────────┘    └──────────────┘    └──────────────┘
+
+              │                    │                    │
+              └────────────────────┼────────────────────┘
+                                   │
+                                   ▼
+
+                    Distributed Internet Monitoring
 ```
 
 ---
+
+# Miner Internal Architecture
+
+```text
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           RUST CLIENT MINER                            │
+└─────────────────────────────────────────────────────────────────────────┘
+
+    Setup Phase
+         │
+         ▼
+
+┌──────────────────────┐
+│ Identity Manager     │
+├──────────────────────┤
+│ Load Keypair         │
+│ Generate Keypair     │
+│ Store Identity       │
+└──────────┬───────────┘
+           │
+           ▼
+
+┌──────────────────────┐
+│ Authentication Plane │
+├──────────────────────┤
+│ Challenge Request    │
+│ Ed25519 Signature    │
+│ Session Validation   │
+└──────────┬───────────┘
+           │
+           ▼
+
+┌──────────────────────┐
+│ gRPC Stream Engine   │
+├──────────────────────┤
+│ HTTP/2 Stream        │
+│ Heartbeats           │
+│ Auto Reconnect       │
+│ Backoff Engine       │
+└──────────┬───────────┘
+           │
+           ▼
+
+┌──────────────────────┐
+│ Task Scheduler       │
+├──────────────────────┤
+│ MPSC Queue           │
+│ Semaphore Limits     │
+│ Target Isolation     │
+└──────────┬───────────┘
+           │
+           ▼
+
+┌──────────────────────┐
+│ Execution Workers    │
+├──────────────────────┤
+│ DNS Profiling        │
+│ TCP Profiling        │
+│ TLS Profiling        │
+│ TTFB Profiling       │
+└──────────┬───────────┘
+           │
+           ▼
+
+┌──────────────────────┐
+│ Metrics Encoder      │
+├──────────────────────┤
+│ Protobuf Serialization│
+│ Binary Compression   │
+└──────────┬───────────┘
+           │
+           ▼
+
+      Back To gRPC Stream
+```
+
+---
+
+# Authentication Flow
+
+```text
+Miner Startup
+      │
+      ▼
+
+┌─────────────────┐
+│ Load Keypair    │
+└────────┬────────┘
+         │
+         ▼
+
+┌─────────────────┐
+│ Request Challenge│
+└────────┬────────┘
+         │
+         ▼
+
+┌─────────────────┐
+│ Server Challenge│
+│ Random Nonce    │
+└────────┬────────┘
+         │
+         ▼
+
+┌─────────────────┐
+│ Sign Challenge  │
+│ Ed25519         │
+└────────┬────────┘
+         │
+         ▼
+
+┌─────────────────┐
+│ Verify Signature│
+└────────┬────────┘
+         │
+         ▼
+
+┌─────────────────┐
+│ Issue Session   │
+└────────┬────────┘
+         │
+         ▼
+
+   Open gRPC Stream
+```
+
+---
+
+# Stream Engine Lifecycle
+
+```text
+┌─────────────────────┐
+│ Connect gRPC Server │
+└──────────┬──────────┘
+           │
+           ▼
+
+┌─────────────────────┐
+│ Stream Established  │
+└──────────┬──────────┘
+           │
+           ▼
+
+┌─────────────────────┐
+│ Receive Jobs        │
+└──────────┬──────────┘
+           │
+           ▼
+
+┌─────────────────────┐
+│ Send Heartbeats     │
+│ Every 15-30 Seconds │
+└──────────┬──────────┘
+           │
+           ▼
+
+      Connection Lost?
+           │
+      ┌────┴────┐
+      │         │
+     NO        YES
+      │         │
+      ▼         ▼
+
+ Continue   Exponential Backoff
+                 │
+                 ▼
+
+          Reconnect Attempt
+                 │
+                 ▼
+
+          Stream Recovered
+```
+
+---
+
+# Scheduler Architecture
+
+```text
+Incoming Jobs
+      │
+      ▼
+
+┌─────────────────────┐
+│ MPSC Job Queue      │
+└──────────┬──────────┘
+           │
+           ▼
+
+┌─────────────────────┐
+│ Semaphore Guard     │
+│ Max Workers = 10    │
+└──────────┬──────────┘
+           │
+           ▼
+
+     Permit Available?
+           │
+      ┌────┴────┐
+      │         │
+     NO        YES
+      │         │
+      ▼         ▼
+
+ Wait Queue   Spawn Worker
+                    │
+                    ▼
+
+        ┌─────────────────────┐
+        │ Active Target Map   │
+        └──────────┬──────────┘
+                   │
+                   ▼
+
+        Same Host Already Active?
+                   │
+             ┌─────┴─────┐
+             │           │
+            YES         NO
+             │           │
+             ▼           ▼
+
+        Delay Task   Execute
+```
+
+---
+
+# Worker Execution Pipeline
+
+```text
+                Start Check
+                     │
+                     ▼
+
+       ┌─────────────────────────┐
+       │ DNS Resolution          │
+       └────────────┬────────────┘
+                    │
+                    ▼
+
+       ┌─────────────────────────┐
+       │ TCP Handshake           │
+       └────────────┬────────────┘
+                    │
+                    ▼
+
+       ┌─────────────────────────┐
+       │ TLS Handshake           │
+       └────────────┬────────────┘
+                    │
+                    ▼
+
+       ┌─────────────────────────┐
+       │ HTTP Request            │
+       └────────────┬────────────┘
+                    │
+                    ▼
+
+       ┌─────────────────────────┐
+       │ Time To First Byte      │
+       └────────────┬────────────┘
+                    │
+                    ▼
+
+       ┌─────────────────────────┐
+       │ Response Validation     │
+       └────────────┬────────────┘
+                    │
+                    ▼
+
+       ┌─────────────────────────┐
+       │ Build Metrics Payload   │
+       └────────────┬────────────┘
+                    │
+                    ▼
+
+       ┌─────────────────────────┐
+       │ Protobuf Encoding       │
+       └────────────┬────────────┘
+                    │
+                    ▼
+
+       ┌─────────────────────────┐
+       │ Send Result To Network  │
+       └─────────────────────────┘
+```
+
+---
+
+# Rust Project Structure
+
+```text
+deping/
+│
+├── Cargo.toml
+├── build.rs
+├── proto/
+│   └── monitor.proto
+│
+├── src/
+│   ├── main.rs
+│   ├── config.rs
+│   ├── error.rs
+│   │
+│   ├── identity/
+│   │   └── mod.rs
+│   │
+│   ├── network/
+│   │   ├── mod.rs
+│   │   └── stream.rs
+│   │
+│   ├── engine/
+│   │   ├── mod.rs
+│   │   ├── scheduler.rs
+│   │   └── worker.rs
+│   │
+│   ├── types/
+│   │   ├── mod.rs
+│   │   ├── metrics.rs
+│   │   └── task.rs
+│   │
+│   └── generated/
+│       └── monitor.rs
+│
+└── .github/
+    └── workflows/
+        └── release.yml
+```
+
 
 ## Core Components
 
