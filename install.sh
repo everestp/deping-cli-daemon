@@ -2,7 +2,7 @@
 
 set -e
 
-REPO="everestp/deping"
+REPO="everestp/deping-cli-daemon"
 BINARY="deping"
 
 OS=$(uname -s)
