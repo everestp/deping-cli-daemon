@@ -15,7 +15,7 @@ impl AppConfig {
         let default_node_id = Self::load_id_from_file().unwrap_or_else(|_| "anonymous_node".to_string());
 
         let mut node_id = env::var("MINER_NODE_ID").unwrap_or(default_node_id);
-        let mut server_url = env::var("SERVER_GRPC_URL").unwrap_or_else(|_| "http://35.224.192.106:50051".to_string());
+        let mut server_url = env::var("SERVER_GRPC_URL").unwrap_or_else(|_| "https://grpc.deping.xyz:443".to_string());
         let mut max_concurrent_jobs = env::var("MAX_CONCURRENT_JOBS")
             .unwrap_or_else(|_| "10".to_string())
             .parse::<usize>()
