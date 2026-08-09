@@ -22,11 +22,15 @@ C_RED="\033[31m"
 C_MAGENTA="\033[35m"
 C_WHITE="\033[97m"
 
-BOX_TL="╭"; BOX_TR="╮"; BOX_BL="╰"; BOX_BR="╯"
-BOX_H="─"; BOX_V="│"
+BOX_TL="╭"
+BOX_TR="╮"
+BOX_BL="╰"
+BOX_BR="╯"
+BOX_H="─"
+BOX_V="│"
 
 # --------------------------------------------------
-# UI helpers
+# UI Helpers
 # --------------------------------------------------
 
 hr() {
@@ -47,7 +51,8 @@ print_banner() {
     printf "${C_RESET}"
 
     printf "${C_MAGENTA}${C_BOLD}   ⚡ Decentralized Uptime & Edge Node Daemon ⚡${C_RESET}\n"
-    printf "  ${C_DIM}${C_WHITE}v${INSTALLER_VERSION}${C_RESET}\n"
+    printf "  ${C_DIM}${C_WHITE}Installer v${INSTALLER_VERSION}${C_RESET}\n"
+
     hr
     printf "\n"
 }
@@ -56,7 +61,9 @@ step_header() {
     local num="$1"
     local total="$2"
     local label="$3"
-    printf "  ${C_DIM}┌─[${C_RESET}${C_BOLD}${C_CYAN}%s/%s${C_RESET}${C_DIM}]${C_RESET} ${C_WHITE}${C_BOLD}%s${C_RESET}\n" "$num" "$total" "$label"
+
+    printf "  ${C_DIM}┌─[${C_RESET}${C_BOLD}${C_CYAN}%s/%s${C_RESET}${C_DIM}]${C_RESET} ${C_WHITE}${C_BOLD}%s${C_RESET}\n" \
+        "$num" "$total" "$label"
 }
 
 step_ok() {
@@ -77,9 +84,12 @@ spinner() {
 
     while kill -0 "$pid" 2>/dev/null; do
         local char="${spinchars:i:1}"
-        printf "\r  ${C_DIM}│${C_RESET}  ${C_CYAN}%s${C_RESET}  %s" "$char" "$msg"
+
+        printf "\r  ${C_DIM}│${C_RESET}  ${C_CYAN}%s${C_RESET}  %s" \
+            "$char" "$msg"
 
         i=$(( (i + 1) % ${#spinchars} ))
+
         sleep 0.08
     done
 
@@ -213,6 +223,7 @@ URL="https://github.com/${REPO}/releases/download/${VERSION_TAG}/${FILE}"
 TMP_FILE="$(mktemp)"
 
 step_header 3 5 "Downloading release binary"
+
 printf "  ${C_DIM}│${C_RESET}\n"
 
 if ! curl \
@@ -225,9 +236,12 @@ if ! curl \
     -o "$TMP_FILE"; then
 
     printf "\n"
+
     step_fail "Download failed."
+
     printf "  ${C_YELLOW}Asset may not exist for ${VERSION_TAG}:${C_RESET}\n"
     printf "  ${C_DIM}%s${C_RESET}\n\n" "$FILE"
+
     exit 1
 fi
 
@@ -250,7 +264,9 @@ step_header 4 5 "Verifying binary"
 
 if ! "$TMP_FILE" --version >/dev/null 2>&1; then
     step_fail "Binary verification failed."
+
     printf "  ${C_YELLOW}The binary may be incompatible with this system.${C_RESET}\n"
+
     exit 1
 fi
 
@@ -272,7 +288,9 @@ fi
 
 if ! sudo install -m 755 "$TMP_FILE" "${INSTALL_DIR}/${BINARY}"; then
     step_fail "Installation failed."
+
     printf "  ${C_YELLOW}Administrative permission may be required.${C_RESET}\n"
+
     exit 1
 fi
 
@@ -285,19 +303,27 @@ step_ok "Global command installed successfully!"
 BOX_WIDTH=52
 
 printf "${C_GREEN}${BOX_TL}"
-printf '%.0s─' $(seq 1 $BOX_WIDTH)
+printf '%.0s─' $(seq 1 "$BOX_WIDTH")
 printf "${BOX_TR}${C_RESET}\n"
 
-printf "${C_GREEN}${BOX_V}${C_RESET}  ${C_BOLD}${C_WHITE}🚀 DePing Edge Daemon is Ready!${C_RESET}%*s${C_GREEN}${BOX_V}${C_RESET}\n" 18 ""
+printf "${C_GREEN}${BOX_V}${C_RESET}  ${C_BOLD}${C_WHITE}🚀 DePing Edge Daemon is Ready!${C_RESET}"
+printf "%*s${C_GREEN}${BOX_V}${C_RESET}\n" 17 ""
 
-printf "${C_GREEN}${BOX_V}${C_RESET}%*s${C_GREEN}${BOX_V}${C_RESET}\n" $((BOX_WIDTH+1)) ""
+printf "${C_GREEN}${BOX_V}${C_RESET}"
+printf "%*s" $((BOX_WIDTH + 1)) ""
+printf "${C_GREEN}${BOX_V}${C_RESET}\n"
 
-printf "${C_GREEN}${BOX_V}${C_RESET}  ${C_DIM}Binary Path${C_RESET}  ${C_CYAN}%-33s${C_RESET}${C_GREEN}${BOX_V}${C_RESET}\n" "${INSTALL_DIR}/${BINARY}"
-printf "${C_GREEN}${BOX_V}${C_RESET}  ${C_DIM}Version${C_RESET}      ${C_CYAN}%-33s${C_RESET}${C_GREEN}${BOX_V}${C_RESET}\n" "${BINARY_VERSION_TEXT}"
-printf "${C_GREEN}${BOX_V}${C_RESET}  ${C_DIM}Platform${C_RESET}     ${C_CYAN}%-33s${C_RESET}${C_GREEN}${BOX_V}${C_RESET}\n" "${OS}/${ARCH}"
+printf "${C_GREEN}${BOX_V}${C_RESET}  ${C_DIM}Binary Path${C_RESET}  ${C_CYAN}%-33s${C_RESET}${C_GREEN}${BOX_V}${C_RESET}\n" \
+    "${INSTALL_DIR}/${BINARY}"
+
+printf "${C_GREEN}${BOX_V}${C_RESET}  ${C_DIM}Version${C_RESET}      ${C_CYAN}%-33s${C_RESET}${C_GREEN}${BOX_V}${C_RESET}\n" \
+    "${BINARY_VERSION_TEXT}"
+
+printf "${C_GREEN}${BOX_V}${C_RESET}  ${C_DIM}Platform${C_RESET}     ${C_CYAN}%-33s${C_RESET}${C_GREEN}${BOX_V}${C_RESET}\n" \
+    "${OS}/${ARCH}"
 
 printf "${C_GREEN}${BOX_BL}"
-printf '%.0s─' $(seq 1 $BOX_WIDTH)
+printf '%.0s─' $(seq 1 "$BOX_WIDTH")
 printf "${BOX_BR}${C_RESET}\n\n"
 
 # --------------------------------------------------
@@ -310,9 +336,11 @@ response="${response:-Y}"
 
 if [[ "$response" =~ ^[Yy]$ ]]; then
     printf "\n"
+
     exec "${INSTALL_DIR}/${BINARY}" setup
 else
     printf "\n"
+
     printf "  ${C_CYAN}To get started later:${C_RESET}\n\n"
     printf "    ${C_BOLD}deping setup${C_RESET}\n"
     printf "    ${C_BOLD}deping start${C_RESET}\n\n"
